@@ -1,0 +1,148 @@
+# Dockerfile para Laravel 10 + PHP 8.3 + Swoole + Octane
+# Inclui todas as dependências para manipulação de documentos e imagens
+
+FROM php:8.3-cli
+
+LABEL maintainer="DevOps Team"
+
+# Definir variáveis de ambiente
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/Sao_Paulo
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
+# Atualizar sistema e instalar dependências base
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libzip-dev \
+    libonig-dev \
+    libpq-dev \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    libxml2-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libwebp-dev \
+    libmagickwand-dev \
+    ghostscript \
+    qpdf \
+    poppler-utils \
+    imagemagick \
+    libreoffice \
+    libreoffice-writer \
+    libreoffice-calc \
+    python3 \
+    python3-pip \
+    python3-uno \
+    ca-certificates \
+    git \
+    curl \
+    wget \
+    nano \
+    vim \
+    unzip \
+    zip \
+    supervisor \
+    cron \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar unoconv via pip (alternativa ao pacote apt)
+RUN pip3 install --break-system-packages unoconv || true
+
+# Configurar ImageMagick policy para permitir manipulação de PDFs (se existir)
+RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
+        sed -i '/<policy domain="coder" rights="none" pattern="PDF" \/>/d' /etc/ImageMagick-6/policy.xml; \
+    elif [ -f /etc/ImageMagick-7/policy.xml ]; then \
+        sed -i '/<policy domain="coder" rights="none" pattern="PDF" \/>/d' /etc/ImageMagick-7/policy.xml; \
+    else \
+        echo "ImageMagick policy.xml not found, skipping..."; \
+    fi
+
+# Instalar extensões PHP
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install -j$(nproc) \
+    pdo \
+    pdo_pgsql \
+    pgsql \
+    zip \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    opcache \
+    sockets
+
+# Instalar extensões via PECL
+RUN pecl install redis-6.0.2 \
+    && docker-php-ext-enable redis
+
+# Instalar imagick (pode falhar, então separado)
+RUN pecl install imagick || echo "imagick installation failed, skipping..." \
+    && docker-php-ext-enable imagick || echo "imagick not available"
+
+# Instalar swoole e protobuf
+RUN pecl install swoole-5.1.2 \
+    && pecl install protobuf-3.25.2 \
+    && docker-php-ext-enable swoole protobuf
+
+# Instalar OpenTelemetry (opcional - descomentar se necessário)
+# RUN pecl install opentelemetry-1.0.0 && docker-php-ext-enable opentelemetry
+
+# Instalar Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Configurar PHP para aceitar grandes uploads
+RUN { \
+    echo 'upload_max_filesize = 512M'; \
+    echo 'post_max_size = 512M'; \
+    echo 'memory_limit = 1024M'; \
+    echo 'max_execution_time = 300'; \
+    echo 'max_input_time = 300'; \
+    echo 'expose_php = Off'; \
+    echo 'display_errors = Off'; \
+    echo 'log_errors = On'; \
+    echo 'error_log = /var/log/php_errors.log'; \
+    echo 'date.timezone = America/Sao_Paulo'; \
+    echo 'opcache.enable = 1'; \
+    echo 'opcache.memory_consumption = 256'; \
+    echo 'opcache.interned_strings_buffer = 16'; \
+    echo 'opcache.max_accelerated_files = 10000'; \
+    echo 'opcache.validate_timestamps = 0'; \
+} > /usr/local/etc/php/conf.d/custom.ini
+
+# Criar usuário não-root
+RUN groupadd -g 1000 laravel \
+    && useradd -u 1000 -g laravel -m -s /bin/bash laravel
+
+# Criar diretórios necessários
+RUN mkdir -p /var/www/html /var/log/supervisor /var/log/php \
+    && chown -R laravel:laravel /var/www /var/log/supervisor /var/log/php
+
+# Configurar working directory
+WORKDIR /var/www/html
+
+# Copiar arquivos de configuração do supervisor
+COPY --chown=laravel:laravel docker/supervisor/*.conf /etc/supervisor/conf.d/
+
+# Copiar crontab
+COPY --chown=laravel:laravel docker/cron/laravel-cron /etc/cron.d/laravel-cron
+RUN chmod 0644 /etc/cron.d/laravel-cron && crontab -u laravel /etc/cron.d/laravel-cron
+
+# Ajustar permissões
+RUN chmod -R 755 /var/www \
+    && chown -R laravel:laravel /var/www
+
+# Mudar para usuário não-root
+USER laravel
+
+# Expor porta do Swoole/Octane
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Comando padrão (será substituído pelo docker-compose)
+CMD ["php", "artisan", "octane:start", "--host=0.0.0.0", "--port=8000"]

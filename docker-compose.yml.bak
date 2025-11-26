@@ -1,0 +1,120 @@
+services:
+  # Serviço principal da aplicação Laravel com Octane/Swoole
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+      - ./storage/logs:/var/www/html/storage/logs
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-laravel}
+      - DB_USERNAME=${DB_USERNAME:-laravel}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - OCTANE_SERVER=swoole
+      - SWOOLE_HTTP_COMPRESSION=true
+      - SWOOLE_HTTP_COMPRESSION_LEVEL=6
+    ports:
+      - "8000:8000"
+    networks:
+      - eidentidade-network
+    command: php artisan octane:start --host=0.0.0.0 --port=8000 --max-requests=1000
+
+  # Nginx como proxy reverso
+  nginx:
+    image: nginx:alpine
+    container_name: laravel_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "9443:443"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./storage/logs/nginx:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - eidentidade-network
+
+  # Worker Manager - Gerencia consumidores RabbitMQ via Supervisor
+  queue-worker-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel_queue_workers
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/supervisor/workers.conf:/etc/supervisor/conf.d/workers.conf
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-laravel}
+      - DB_USERNAME=${DB_USERNAME:-laravel}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "3001:3001"
+    depends_on:
+      - app
+    networks:
+      - eidentidade-network
+    user: laravel
+    command: /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
+
+  # Serviço Cron para tarefas agendadas
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel_cron
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/cron/laravel-cron:/etc/cron.d/laravel-cron
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-laravel}
+      - DB_USERNAME=${DB_USERNAME:-laravel}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - app
+    ports:
+      - "3002:3002"
+    networks:
+      - eidentidade-network
+    user: root
+    command: cron -f
+
+networks:
+  eidentidade-network:
+    external: true
+    name: eidentidade-network
