@@ -9,6 +9,9 @@ use Modules\Auth\Application\DTOs\LoginDTO;
 use Modules\Auth\Application\UseCases\AuthenticateUserUseCase;
 use Modules\Auth\Infrastructure\Services\JwtService;
 use Modules\Auth\Presentation\Requests\LoginRequest;
+use Modules\Auth\Presentation\Requests\RegisterRequest;
+use Modules\Users\Application\UseCases\CreateUserUseCase;
+use Modules\Users\Application\DTOs\CreateUserDTO;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\UnauthorizedException;
@@ -20,8 +23,42 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly AuthenticateUserUseCase $authenticateUserUseCase,
+        private readonly CreateUserUseCase $createUserUseCase,
         private readonly JwtService $jwtService
     ) {}
+
+    /**
+     * Registro de novo usuário
+     */
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        try {
+            $dto = CreateUserDTO::fromArray($request->validated());
+            $user = $this->createUserUseCase->execute($dto);
+            
+            // Gerar token JWT
+            $token = $this->jwtService->generateToken($user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Usuário criado com sucesso',
+                'data' => [
+                    'user' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                    ],
+                    'access_token' => $token,
+                    'token_type' => 'bearer',
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
 
     /**
      * Login de usuário
@@ -61,7 +98,7 @@ class AuthController extends Controller
             $token = $request->bearerToken();
             
             if ($token) {
-                $this->jwtService->revokeToken($token);
+                $this->jwtService->invalidateToken($token);
             }
 
             return response()->json([
@@ -122,14 +159,8 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // Revogar token antigo
-            $oldToken = $request->bearerToken();
-            if ($oldToken) {
-                $this->jwtService->revokeToken($oldToken);
-            }
-
             // Gerar novo token
-            $newToken = $this->jwtService->generateToken($user);
+            $newToken = $this->jwtService->refreshToken();
 
             return response()->json([
                 'success' => true,
@@ -137,7 +168,6 @@ class AuthController extends Controller
                 'data' => [
                     'access_token' => $newToken,
                     'token_type' => 'bearer',
-                    'expires_in' => $this->jwtService->getTTL(),
                 ]
             ]);
         } catch (\Exception $e) {

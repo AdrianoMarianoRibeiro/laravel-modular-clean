@@ -1,0 +1,129 @@
+{
+    "masterProcessId": 9,
+    "managerProcessId": 10,
+    "state": {
+        "appName": "Laravel Modular Clean",
+        "host": "0.0.0.0",
+        "port": "8000",
+        "workers": "4",
+        "taskWorkers": "6",
+        "maxRequests": "1000",
+        "publicPath": "\/var\/www\/html\/public",
+        "storagePath": "\/var\/www\/html\/storage",
+        "defaultServerOptions": {
+            "enable_coroutine": false,
+            "daemonize": false,
+            "log_file": "\/var\/www\/html\/storage\/logs\/swoole_http.log",
+            "log_level": 5,
+            "max_request": "1000",
+            "package_max_length": 10485760,
+            "reactor_num": "4",
+            "send_yield": true,
+            "socket_buffer_size": 10485760,
+            "task_max_request": "1000",
+            "task_worker_num": "6",
+            "worker_num": "4"
+        },
+        "octaneConfig": {
+            "server": "swoole",
+            "https": false,
+            "listeners": {
+                "Laravel\\Octane\\Events\\WorkerStarting": [
+                    "Laravel\\Octane\\Listeners\\EnsureUploadedFilesAreValid",
+                    "Laravel\\Octane\\Listeners\\EnsureUploadedFilesCanBeMoved"
+                ],
+                "Laravel\\Octane\\Events\\RequestReceived": [
+                    "Laravel\\Octane\\Listeners\\DisconnectFromDatabases",
+                    "Laravel\\Octane\\Listeners\\FlushStrAccumulation"
+                ],
+                "Laravel\\Octane\\Events\\RequestHandled": [
+                    "Laravel\\Octane\\Listeners\\FlushTemporaryContainerInstances"
+                ],
+                "Laravel\\Octane\\Events\\RequestTerminated": [
+                    "Laravel\\Octane\\Listeners\\FlushUploadedFiles"
+                ],
+                "Laravel\\Octane\\Events\\TickReceived": [
+                    "Laravel\\Octane\\Listeners\\FlushStaleSessions"
+                ],
+                "Laravel\\Octane\\Events\\TickTerminated": [
+                    "Laravel\\Octane\\Listeners\\FlushTemporaryContainerInstances"
+                ],
+                "Laravel\\Octane\\Events\\WorkerErrorOccurred": [],
+                "Laravel\\Octane\\Events\\WorkerStopping": []
+            },
+            "warm": [
+                "auth",
+                "cache",
+                "cache.store",
+                "config",
+                "db",
+                "encrypter",
+                "log",
+                "redis",
+                "redis.connection",
+                "router",
+                "session",
+                "session.store",
+                "view"
+            ],
+            "flush": [],
+            "tables": {
+                "example:1000": {
+                    "name": "string:1000",
+                    "votes": "int"
+                }
+            },
+            "cache": {
+                "rows": 1000
+            },
+            "watch": {
+                "directories": [
+                    "app",
+                    "bootstrap",
+                    "config",
+                    "database",
+                    "modules",
+                    "public\/**\/*.php",
+                    "resources\/**\/*.php",
+                    "routes",
+                    "storage\/framework\/views"
+                ],
+                "exclude": [
+                    "node_modules",
+                    "vendor",
+                    "storage",
+                    "public\/storage",
+                    "public\/hot"
+                ],
+                "poll": false,
+                "interval": 1000
+            },
+            "garbage": 50,
+            "max_execution_time": 30,
+            "swoole": {
+                "options": {
+                    "log_file": "\/var\/www\/html\/storage\/logs\/swoole.log",
+                    "log_level": 0,
+                    "worker_num": "4",
+                    "task_worker_num": "6",
+                    "max_request": "1000",
+                    "reload_async": true,
+                    "enable_coroutine": true,
+                    "max_coroutine": "10000",
+                    "package_max_length": "536870912",
+                    "buffer_output_size": "4194304",
+                    "max_wait_time": 60,
+                    "http_compression": true,
+                    "http_compression_level": "6",
+                    "open_tcp_nodelay": true,
+                    "tcp_fastopen": true,
+                    "socket_buffer_size": 8388608
+                }
+            },
+            "garbage_collection": [
+                "Laravel\\Octane\\Listeners\\DisconnectFromDatabases",
+                "Laravel\\Octane\\Listeners\\FlushStrAccumulation"
+            ]
+        }
+    }
+}

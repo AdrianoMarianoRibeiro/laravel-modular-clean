@@ -37,16 +37,13 @@ class AuthenticateUserUseCase
             throw new UnauthorizedException('Credenciais inválidas.');
         }
 
-        // Invalidar tokens anteriores do usuário (opcional - segurança adicional)
-        $this->jwtService->revokeUserTokens($user->id);
-
         // Gerar novo token JWT
         $token = $this->jwtService->generateToken($user);
 
         return new AuthResponseDTO(
             token: $token,
             type: 'bearer',
-            expiresIn: $this->jwtService->getTTL(),
+            expiresIn: 3600, // 1 hora em segundos
             user: [
                 'id' => $user->id,
                 'name' => $user->name,

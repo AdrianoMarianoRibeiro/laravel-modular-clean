@@ -123,19 +123,19 @@ RUN mkdir -p /var/www/html /var/log/supervisor /var/log/php \
 # Configurar working directory
 WORKDIR /var/www/html
 
-# Copiar arquivos de configuração do supervisor
-COPY --chown=laravel:laravel docker/supervisor/*.conf /etc/supervisor/conf.d/
+# Copiar arquivos de configuração do supervisor (manter como root)
+COPY docker/supervisor/*.conf /etc/supervisor/conf.d/
 
 # Copiar crontab
-COPY --chown=laravel:laravel docker/cron/laravel-cron /etc/cron.d/laravel-cron
+COPY docker/cron/laravel-cron /etc/cron.d/laravel-cron
 RUN chmod 0644 /etc/cron.d/laravel-cron && crontab -u laravel /etc/cron.d/laravel-cron
 
 # Ajustar permissões
 RUN chmod -R 755 /var/www \
     && chown -R laravel:laravel /var/www
 
-# Mudar para usuário não-root
-USER laravel
+# NOTA: Não usar USER laravel para permitir que supervisor rode como root
+# Cada processo individual pode rodar com seu próprio usuário via configuração do supervisor
 
 # Expor porta do Swoole/Octane
 EXPOSE 8000
